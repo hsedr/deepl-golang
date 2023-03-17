@@ -1,0 +1,10 @@
+github.com/anthdm/tasker v0.0.0-20221211183213-9ddc090ec7c4 h1:/u8nQN/A6b+C4A0BB4FYUqO4Quw+tZOnckFXQMJ86no=
+github.com/anthdm/tasker v0.0.0-20221211183213-9ddc090ec7c4/go.mod h1:qxSwKHiGhqzjffMuh74lDfnwl2N9lrcbsULc9ME/fP0=
+github.com/carlmjohnson/requests v0.23.2 h1:SzaY+/5v8QOvt++7HTXe1xgmIb3wc/bYf2QJmrO73sM=
+github.com/carlmjohnson/requests v0.23.2/go.mod h1:09VwhOaRQYCraJcByjEuvuOGO1jxUjIx6vnAEkt2ges=
+github.com/fatih/structs v1.1.0 h1:Q7juDM0QtcnhCpeyLGQKyg4TOIghuNXrkL32pHAUMxo=
+github.com/fatih/structs v1.1.0/go.mod h1:9NiDSp5zOcgEDl+j00MP/WkGVPOlPRLejGD8Ga6PJ7M=
+github.com/google/go-cmp v0.5.9 h1:O2Tfq5qg4qc4AmwVlvv0oLiVAGB7enBSJ2x2DqQFi38=
+github.com/google/go-cmp v0.5.9/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeNGIjoY=
+golang.org/x/net v0.5.0 h1:GyT4nK/YDHSqa1c4753ouYCDajOYKTja9Xb/OHtgvSw=
+golang.org/x/net v0.5.0/go.mod h1:DivGGAXEgPSlEBzxGzZI+ZLohi+xUj054jfeKui00ws=
