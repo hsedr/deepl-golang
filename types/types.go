@@ -3,25 +3,8 @@ package types
 import (
 	"io"
 
-	"github.com/carlmjohnson/requests"
 	"github.com/deepl/constants"
 )
-
-type RequestBuilder struct {
-	*requests.Builder
-}
-
-func NewRequestBuilder(baseurl string) *RequestBuilder {
-	rb := requests.URL(baseurl)
-	return &RequestBuilder{rb}
-}
-
-func (rb *RequestBuilder) Params(m map[string]string) *RequestBuilder {
-	for k, v := range m {
-		rb.Param(k, v)
-	}
-	return rb
-}
 
 type TextTranslateOptions struct {
 	// "0" -> no splitting

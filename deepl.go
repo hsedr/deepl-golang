@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/anthdm/tasker"
+	"github.com/carlmjohnson/requests"
 	"github.com/deepl/types"
 	"github.com/fatih/structs"
 )
@@ -36,9 +37,8 @@ func NewTranslator(key string) *Translator {
 func (d *Translator) TranslateTextAsync(text string, sourceLang string, targetLang string, options *types.TextTranslateOptions) tasker.TaskFunc[types.Translations] {
 	return func(ctx context.Context) (types.Translations, error) {
 		var response types.Translations
-		rb := types.NewRequestBuilder(host + "/translate")
-		err := rb.
-			Params(structToMap(options)).
+		err := requests.
+			URL(host+"/translate").
 			Header("Authorization", "DeepL-Auth-Key "+d.ApiKey).
 			Header("Connection", "keep-alive").
 			UserAgent("Live-Translator/1.0").
@@ -47,6 +47,11 @@ func (d *Translator) TranslateTextAsync(text string, sourceLang string, targetLa
 			Param("text", text).
 			Param("source_lang", sourceLang).
 			Param("target_lang", targetLang).
+			Config(func(rb *requests.Builder) {
+				for k, v := range structToMap(options) {
+					rb.Param(k, v)
+				}
+			}).
 			ToJSON(&response).
 			Fetch(context.Background())
 		if err != nil {
@@ -90,8 +95,8 @@ func (d *Translator) uploadDocumentAsync(s string, t string, file io.Reader, opt
 		}
 		io.Copy(fileWriter, file)
 		bodyWriter.Close()
-		rb := types.NewRequestBuilder(host + "/document")
-		err = rb.
+		err = requests.
+			URL(host+"/document").
 			Header("Authorization", "DeepL-Auth-Key "+d.ApiKey).
 			Header("Connection", "keep-alive").
 			UserAgent("Live-Translator/1.0").
@@ -110,8 +115,8 @@ func (d *Translator) checkDocumentStatusAsync(doc *types.DocumentIDAndKey) taske
 	return func(ctx context.Context) (types.DocumentStatus, error) {
 		path := fmt.Sprintf("/document/%s", doc.DocumentID)
 		var res types.DocumentStatus
-		rb := types.NewRequestBuilder(host + path)
-		err := rb.
+		err := requests.
+			URL(host+path).
 			Header("Authorization", "DeepL-Auth-Key "+d.ApiKey).
 			Header("Connection", "keep-alive").
 			UserAgent("Live-Translator/1.0").
@@ -152,8 +157,8 @@ func (d *Translator) isDocumentTranslationComplete(doc *types.DocumentIDAndKey) 
 func (d *Translator) downloadDocumentAsync(doc *types.DocumentIDAndKey, file io.Writer) tasker.TaskFunc[bool] {
 	return func(ctx context.Context) (bool, error) {
 		path := fmt.Sprintf("/document/%s/result", doc.DocumentID)
-		rb := types.NewRequestBuilder(host + path)
-		err := rb.
+		err := requests.
+			URL(host+path).
 			Header("Authorization", "DeepL-Auth-Key "+d.ApiKey).
 			Header("Connection", "keep-alive").
 			UserAgent("Live-Translator/1.0").
@@ -172,8 +177,8 @@ func (d *Translator) downloadDocumentAsync(doc *types.DocumentIDAndKey, file io.
 func (d *Translator) GetUsage() tasker.TaskFunc[types.Usage] {
 	return func(ctx context.Context) (types.Usage, error) {
 		var response types.Usage
-		rb := types.NewRequestBuilder(host + "/usage")
-		err := rb.
+		err := requests.
+			URL(host+"/usage").
 			Header("Authorization", "DeepL-Auth-Key "+d.ApiKey).
 			UserAgent("Live-Translator/1.0").
 			ToJSON(&response).
@@ -191,8 +196,8 @@ func (d *Translator) GetUsage() tasker.TaskFunc[types.Usage] {
 func (d *Translator) GetLanguagesAsync(languageType string) tasker.TaskFunc[[]types.SupportedLanguage] {
 	return func(ctx context.Context) ([]types.SupportedLanguage, error) {
 		var response []types.SupportedLanguage
-		rb := types.NewRequestBuilder(host + "/languages")
-		err := rb.
+		err := requests.
+			URL(host+"/languages").
 			Header("Authorization", "DeepL-Auth-Key "+d.ApiKey).
 			UserAgent("Live-Translator/1.0").
 			Param("type", languageType).
@@ -208,8 +213,8 @@ func (d *Translator) GetLanguagesAsync(languageType string) tasker.TaskFunc[[]ty
 func (d *Translator) GetGlossaryLanguagesAsync() tasker.TaskFunc[types.GlossaryLanguagePairs] {
 	return func(ctx context.Context) (types.GlossaryLanguagePairs, error) {
 		var response types.GlossaryLanguagePairs
-		rb := types.NewRequestBuilder(host + "/glossary-language-pairs")
-		err := rb.
+		err := requests.
+			URL(host+"/glossary-language-pairs").
 			Header("Authorization", "DeepL-Auth-Key "+d.ApiKey).
 			UserAgent("Live-Translator/1.0").
 			ToJSON(&response).
