@@ -14,7 +14,13 @@ import (
 func TestTranslateTextAsync(t *testing.T) {
 	key := "key"
 	text := "proton beam"
-	translator := NewTranslator(key)
+	translator, err := NewTranslator(key, types.TranslatorOptions{
+		ServerURL:         "http://localhost:3000/v2",
+		SendPlattformInfo: true,
+	})
+	if err != nil {
+		t.Errorf(err.Error())
+	}
 	options := &types.TextTranslateOptions{}
 	res := tasker.Spawn(translator.TranslateTextAsync(text, string(constants.SourceLangEnglish), string(constants.TargetLangGerman), options))
 	translation, err := res.Await()
@@ -32,7 +38,11 @@ func TestTranslateTextAsync(t *testing.T) {
 
 func TestTranslateDocumentAsync(t *testing.T) {
 	key := "key"
-	translator := NewTranslator(key)
+
+	translator, err := NewTranslator(key, types.TranslatorOptions{ServerURL: "http://localhost:3000/v2"})
+	if err != nil {
+		t.Errorf(err.Error())
+	}
 	file, _ := os.Create("result.txt")
 	defer file.Close()
 	options := types.DocumentTranslateOptions{
@@ -41,7 +51,7 @@ func TestTranslateDocumentAsync(t *testing.T) {
 	}
 	input, _ := os.Open("test.txt")
 	res := tasker.Spawn(translator.TranslateDocumentAsync(string(constants.SourceLangEnglish), string(constants.TargetLangGerman), input, options))
-	_, err := res.Await()
+	_, err = res.Await()
 	if err != nil {
 		fmt.Println(err)
 	}

@@ -3,6 +3,7 @@ package constants
 type Formality string
 type SourceLang string
 type TargetLang string
+type DocumentStatusCode string
 
 const (
 	Default    Formality = "default"
@@ -10,6 +11,13 @@ const (
 	Less       Formality = "less"
 	PreferMore Formality = "prefer_more"
 	PreferLess Formality = "prefer_less"
+)
+
+const (
+	DocumentStatusQueued      DocumentStatusCode = "queued"
+	DocumentStatusTranslating DocumentStatusCode = "translating"
+	DocumentStatusError       DocumentStatusCode = "error"
+	DocumentStatusDone        DocumentStatusCode = "done"
 )
 
 const (

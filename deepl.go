@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"io"
 	"mime/multipart"
-	"strconv"
+	"net/http"
+	"runtime"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/anthdm/tasker"
 	"github.com/carlmjohnson/requests"
@@ -18,32 +18,45 @@ import (
 	"github.com/fatih/structs"
 )
 
-const (
-	_host       = "https://api-free.deepl.com/v2"
-	host        = "http://localhost:3000/v2"
-	contentType = "application/x-www-form-urlencoded"
-)
-
 type Translator struct {
-	ApiKey string
+	HttpClient *http.Client
 }
 
-func NewTranslator(key string) *Translator {
-	return &Translator{
-		ApiKey: key,
+func NewTranslator(authKey string, options types.TranslatorOptions) (*Translator, error) {
+	if authKey == "" {
+		return &Translator{}, errors.New("authKey must be a non-empty string")
 	}
+	retries := 5
+	timeout := time.Second * 5
+	serverURL := ""
+	headers := make(map[string]string)
+	if options.ServerURL != "" {
+		serverURL = options.ServerURL
+	} else if IsFreeAccountAuthKey(authKey) {
+		serverURL = "https://api-free.deepl.com"
+	} else {
+		serverURL = "https://api.deepl.com"
+	}
+	if options.Retries >= 0 {
+		retries = options.Retries
+	}
+	if options.TimeOut >= 1 {
+		timeout = options.TimeOut
+	}
+	headers["Authorization"] = fmt.Sprint("DeepL-Auth-Key ", authKey)
+	headers["User-Agent"] = constructUserAgentString(options.SendPlattformInfo, options.AppInfo)
+	return &Translator{
+		HttpClient: NewTransport(serverURL, headers, timeout, retries).Client(),
+	}, nil
 }
 
 func (d *Translator) TranslateTextAsync(text string, sourceLang string, targetLang string, options *types.TextTranslateOptions) tasker.TaskFunc[types.Translations] {
 	return func(ctx context.Context) (types.Translations, error) {
 		var response types.Translations
 		err := requests.
-			URL(host+"/translate").
-			Header("Authorization", "DeepL-Auth-Key "+d.ApiKey).
-			Header("Connection", "keep-alive").
-			UserAgent("Live-Translator/1.0").
-			ContentType(contentType).
-			Header("Content-Length", strconv.Itoa(utf8.RuneCountInString(text))).
+			URL("/translate").
+			Client(d.HttpClient).
+			ContentType("application/x-www-form-urlencoded").
 			Param("text", text).
 			Param("source_lang", sourceLang).
 			Param("target_lang", targetLang).
@@ -61,7 +74,6 @@ func (d *Translator) TranslateTextAsync(text string, sourceLang string, targetLa
 	}
 }
 
-// todo: documentation
 func (d *Translator) TranslateDocumentAsync(s string, t string, f io.Reader, options types.DocumentTranslateOptions) tasker.TaskFunc[types.DocumentStatus] {
 	return func(ctx context.Context) (types.DocumentStatus, error) {
 		var status types.DocumentStatus
@@ -81,9 +93,9 @@ func (d *Translator) TranslateDocumentAsync(s string, t string, f io.Reader, opt
 	}
 }
 
-func (d *Translator) uploadDocumentAsync(s string, t string, file io.Reader, options types.DocumentTranslateOptions) tasker.TaskFunc[types.DocumentIDAndKey] {
-	return func(ctx context.Context) (types.DocumentIDAndKey, error) {
-		var doc types.DocumentIDAndKey
+func (d *Translator) uploadDocumentAsync(s string, t string, file io.Reader, options types.DocumentTranslateOptions) tasker.TaskFunc[types.DocumentHandle] {
+	return func(ctx context.Context) (types.DocumentHandle, error) {
+		var doc types.DocumentHandle
 		body := &bytes.Buffer{}
 		bodyWriter := multipart.NewWriter(body)
 		bodyWriter.WriteField("source_lang", s)
@@ -96,10 +108,8 @@ func (d *Translator) uploadDocumentAsync(s string, t string, file io.Reader, opt
 		io.Copy(fileWriter, file)
 		bodyWriter.Close()
 		err = requests.
-			URL(host+"/document").
-			Header("Authorization", "DeepL-Auth-Key "+d.ApiKey).
-			Header("Connection", "keep-alive").
-			UserAgent("Live-Translator/1.0").
+			URL("/document").
+			Client(d.HttpClient).
 			ContentType(fmt.Sprintf("multipart/form-data;boundary=%s", bodyWriter.Boundary())).
 			BodyBytes(body.Bytes()).
 			ToJSON(&doc).
@@ -111,17 +121,14 @@ func (d *Translator) uploadDocumentAsync(s string, t string, file io.Reader, opt
 	}
 }
 
-func (d *Translator) checkDocumentStatusAsync(doc *types.DocumentIDAndKey) tasker.TaskFunc[types.DocumentStatus] {
+func (d *Translator) checkDocumentStatusAsync(doc *types.DocumentHandle) tasker.TaskFunc[types.DocumentStatus] {
 	return func(ctx context.Context) (types.DocumentStatus, error) {
 		path := fmt.Sprintf("/document/%s", doc.DocumentID)
 		var res types.DocumentStatus
 		err := requests.
-			URL(host+path).
-			Header("Authorization", "DeepL-Auth-Key "+d.ApiKey).
-			Header("Connection", "keep-alive").
-			UserAgent("Live-Translator/1.0").
-			ContentType(contentType).
-			Header("Content-Length", strconv.Itoa(utf8.RuneCountInString(doc.DocumentKey))).
+			URL(path).
+			Client(d.HttpClient).
+			ContentType("application/x-www-form-urlencoded").
 			Param("document_key", doc.DocumentKey).
 			ToJSON(&res).
 			Fetch(context.Background())
@@ -133,7 +140,7 @@ func (d *Translator) checkDocumentStatusAsync(doc *types.DocumentIDAndKey) taske
 }
 
 // Fullfills when document translation either finnished or ran into an error.
-func (d *Translator) isDocumentTranslationComplete(doc *types.DocumentIDAndKey) tasker.TaskFunc[types.DocumentStatus] {
+func (d *Translator) isDocumentTranslationComplete(doc *types.DocumentHandle) tasker.TaskFunc[types.DocumentStatus] {
 	return func(ctx context.Context) (types.DocumentStatus, error) {
 		status, err := tasker.Spawn(d.checkDocumentStatusAsync(doc)).Await()
 		if err != nil {
@@ -154,16 +161,13 @@ func (d *Translator) isDocumentTranslationComplete(doc *types.DocumentIDAndKey) 
 	}
 }
 
-func (d *Translator) downloadDocumentAsync(doc *types.DocumentIDAndKey, file io.Writer) tasker.TaskFunc[bool] {
+func (d *Translator) downloadDocumentAsync(doc *types.DocumentHandle, file io.Writer) tasker.TaskFunc[bool] {
 	return func(ctx context.Context) (bool, error) {
 		path := fmt.Sprintf("/document/%s/result", doc.DocumentID)
 		err := requests.
-			URL(host+path).
-			Header("Authorization", "DeepL-Auth-Key "+d.ApiKey).
-			Header("Connection", "keep-alive").
-			UserAgent("Live-Translator/1.0").
-			ContentType(contentType).
-			Header("Content-Length", strconv.Itoa(utf8.RuneCountInString(doc.DocumentKey))).
+			URL(path).
+			Client(d.HttpClient).
+			ContentType("application/x-www-form-urlencoded").
 			Param("document_key", doc.DocumentKey).
 			ToWriter(file).
 			Fetch(context.Background())
@@ -178,9 +182,8 @@ func (d *Translator) GetUsage() tasker.TaskFunc[types.Usage] {
 	return func(ctx context.Context) (types.Usage, error) {
 		var response types.Usage
 		err := requests.
-			URL(host+"/usage").
-			Header("Authorization", "DeepL-Auth-Key "+d.ApiKey).
-			UserAgent("Live-Translator/1.0").
+			URL("/usage").
+			Client(d.HttpClient).
 			ToJSON(&response).
 			Fetch(context.Background())
 		if err != nil {
@@ -197,9 +200,8 @@ func (d *Translator) GetLanguagesAsync(languageType string) tasker.TaskFunc[[]ty
 	return func(ctx context.Context) ([]types.SupportedLanguage, error) {
 		var response []types.SupportedLanguage
 		err := requests.
-			URL(host+"/languages").
-			Header("Authorization", "DeepL-Auth-Key "+d.ApiKey).
-			UserAgent("Live-Translator/1.0").
+			URL("/languages").
+			Client(d.HttpClient).
 			Param("type", languageType).
 			ToJSON(&response).
 			Fetch(context.Background())
@@ -214,9 +216,8 @@ func (d *Translator) GetGlossaryLanguagesAsync() tasker.TaskFunc[types.GlossaryL
 	return func(ctx context.Context) (types.GlossaryLanguagePairs, error) {
 		var response types.GlossaryLanguagePairs
 		err := requests.
-			URL(host+"/glossary-language-pairs").
-			Header("Authorization", "DeepL-Auth-Key "+d.ApiKey).
-			UserAgent("Live-Translator/1.0").
+			URL("/glossary-language-pairs").
+			Client(d.HttpClient).
 			ToJSON(&response).
 			Fetch(context.Background())
 		if err != nil {
@@ -246,4 +247,21 @@ func structToMap(s interface{}) map[string]string {
 		ret[json] = value
 	}
 	return ret
+}
+
+func checkStatusCode() {
+	//TODO
+}
+
+func constructUserAgentString(sendPlattformInfo bool, appInfo types.AppInfo) string {
+	libraryInfo := "deepl-golang/1.0 "
+	if sendPlattformInfo {
+		system := runtime.GOOS
+		goVersion := runtime.Version()
+		libraryInfo += system + " " + goVersion
+	}
+	if appInfo != (types.AppInfo{}) {
+		libraryInfo += fmt.Sprint(" "+appInfo.AppName, "/", appInfo.AppVersion)
+	}
+	return libraryInfo
 }

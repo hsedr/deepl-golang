@@ -2,19 +2,15 @@ package types
 
 import (
 	"io"
+	"time"
 
 	"github.com/deepl/constants"
 )
 
 type TextTranslateOptions struct {
-	// "0" -> no splitting
-	// "1" -> default
-	// "nonewline"
-	SplitSentences string `json:"split_sentences"`
+	SplitSentences int `json:"split_sentences"`
 
-	// "0" -> default
-	// "1" -> formatting takes effect
-	PreserveFormatting string `json:"preserve_formatting"`
+	PreserveFormatting int `json:"preserve_formatting"`
 
 	Formality constants.Formality `json:"formality"`
 
@@ -26,8 +22,7 @@ type TextTranslateOptions struct {
 	// comma-seperated list of xml tags
 	NonSplittingTags string `json:"non_splitting_tags"`
 
-	// "0" or "1"
-	OutlineDetection string `json:"outline_detection"`
+	OutlineDetection int `json:"outline_detection"`
 
 	// comma-seperated list of xml tags
 	SplittingTags string `json:"splitting_tags"`
@@ -43,7 +38,7 @@ type DocumentTranslateOptions struct {
 	GlossaryID string
 }
 
-type DocumentIDAndKey struct {
+type DocumentHandle struct {
 	DocumentID  string `json:"document_id"`
 	DocumentKey string `json:"document_key"`
 }
@@ -95,4 +90,18 @@ type GlossaryLanguagePair struct {
 
 type GlossaryLanguagePairs struct {
 	SupportedLanguages []GlossaryLanguagePair `json:"supported_languages"`
+}
+
+type AppInfo struct {
+	AppName    string
+	AppVersion string
+}
+
+type TranslatorOptions struct {
+	ServerURL         string
+	Headers           map[string]interface{}
+	SendPlattformInfo bool
+	AppInfo           AppInfo
+	TimeOut           time.Duration
+	Retries           int
 }
