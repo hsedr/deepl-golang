@@ -17,6 +17,7 @@ type Transport struct {
 	Transport http.RoundTripper
 }
 
+// NewTransport returns a new Transport with the given server url, headers, timeout and retries.
 func NewTransport(serverUrl string, headers map[string]string, timeOut time.Duration, retries int) *Transport {
 	return &Transport{
 		ServerUrl: serverUrl,
@@ -26,6 +27,7 @@ func NewTransport(serverUrl string, headers map[string]string, timeOut time.Dura
 	}
 }
 
+// Client returns a new http.Client with the Transport as the underlying transport.
 func (t *Transport) Client() *http.Client {
 	return httpretry.NewCustomClient(&http.Client{
 		Transport: t,
@@ -35,6 +37,7 @@ func (t *Transport) Client() *http.Client {
 	)
 }
 
+// transport returns the underlying RoundTripper, defaulting to http.DefaultTransport.
 func (t *Transport) transport() http.RoundTripper {
 	if t.Transport != nil {
 		return t.Transport
@@ -42,11 +45,13 @@ func (t *Transport) transport() http.RoundTripper {
 	return http.DefaultTransport
 }
 
+// RoundTrip executes a single HTTP transaction, returning a Response for the provided Request.
+// Sets prior defined headers and adds the host url to the request url.
 func (t *Transport) RoundTrip(r *http.Request) (*http.Response, error) {
 	req := *r
 	rawQuery := req.URL.RawQuery
 	path := req.URL.Path
-	u, err := url.Parse(fmt.Sprint(t.ServerUrl, path, "?", rawQuery))
+	u, err := url.Parse(fmt.Sprintf("%s%s?%s", t.ServerUrl, path, rawQuery))
 	if err != nil {
 		return &http.Response{}, err
 	}

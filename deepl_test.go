@@ -56,3 +56,15 @@ func TestTranslateDocumentAsync(t *testing.T) {
 		fmt.Println(err)
 	}
 }
+
+func TestConstructUserAgent(t *testing.T) {
+	appInfo := types.AppInfo{
+		AppName:    "TestApp",
+		AppVersion: "1.0",
+	}
+	got := constructUserAgentString(true, appInfo)
+	want := "deepl-golang/1.0 windows go1.20.1 TestApp/1.0"
+	if got != want {
+		t.Errorf("want: %s, got %s", want, got)
+	}
+}

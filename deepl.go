@@ -1,7 +1,6 @@
 package deepl
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -74,6 +73,7 @@ func (d *Translator) TranslateTextAsync(text string, sourceLang string, targetLa
 	}
 }
 
+// TranslateDocumentAsync translates a document and returns a task that can be awaited.
 func (d *Translator) TranslateDocumentAsync(s string, t string, f io.Reader, options types.DocumentTranslateOptions) tasker.TaskFunc[types.DocumentStatus] {
 	return func(ctx context.Context) (types.DocumentStatus, error) {
 		var status types.DocumentStatus
@@ -81,7 +81,7 @@ func (d *Translator) TranslateDocumentAsync(s string, t string, f io.Reader, opt
 		if err != nil {
 			return status, err
 		}
-		status, err = tasker.Spawn(d.isDocumentTranslationComplete(&doc)).Await()
+		status, err = tasker.Spawn(d.isDocumentTranslationCompleteAsync(&doc)).Await()
 		if err != nil {
 			return status, err
 		}
@@ -93,25 +93,30 @@ func (d *Translator) TranslateDocumentAsync(s string, t string, f io.Reader, opt
 	}
 }
 
+// uploadDocumentAsync uploads a document to the DeepL API and returns a task that can be awaited.
 func (d *Translator) uploadDocumentAsync(s string, t string, file io.Reader, options types.DocumentTranslateOptions) tasker.TaskFunc[types.DocumentHandle] {
 	return func(ctx context.Context) (types.DocumentHandle, error) {
 		var doc types.DocumentHandle
-		body := &bytes.Buffer{}
-		bodyWriter := multipart.NewWriter(body)
-		bodyWriter.WriteField("source_lang", s)
-		bodyWriter.WriteField("target_lang", t)
-		fileWriter, err := bodyWriter.CreateFormFile("file", options.FileName)
-		if err != nil {
-			fmt.Println(err)
-			return doc, err
-		}
-		io.Copy(fileWriter, file)
-		bodyWriter.Close()
-		err = requests.
+		bodyWriter := &multipart.Writer{}
+		var contentType string
+		err := requests.
 			URL("/document").
 			Client(d.HttpClient).
-			ContentType(fmt.Sprintf("multipart/form-data;boundary=%s", bodyWriter.Boundary())).
-			BodyBytes(body.Bytes()).
+			BodyWriter(func(w io.Writer) error {
+				bodyWriter = multipart.NewWriter(w)
+				defer bodyWriter.Close()
+				bodyWriter.WriteField("source_lang", s)
+				bodyWriter.WriteField("target_lang", t)
+				fileWriter, err := bodyWriter.CreateFormFile("file", options.FileName)
+				if err != nil {
+					fmt.Println(err)
+					return err
+				}
+				io.Copy(fileWriter, file)
+				contentType = bodyWriter.FormDataContentType()
+				return nil
+			}).
+			ContentType(contentType).
 			ToJSON(&doc).
 			Fetch(context.Background())
 		if err != nil {
@@ -121,6 +126,7 @@ func (d *Translator) uploadDocumentAsync(s string, t string, file io.Reader, opt
 	}
 }
 
+// checkDocumentStatusAsync checks the status of a document translation and returns a task that can be awaited.
 func (d *Translator) checkDocumentStatusAsync(doc *types.DocumentHandle) tasker.TaskFunc[types.DocumentStatus] {
 	return func(ctx context.Context) (types.DocumentStatus, error) {
 		path := fmt.Sprintf("/document/%s", doc.DocumentID)
@@ -139,8 +145,9 @@ func (d *Translator) checkDocumentStatusAsync(doc *types.DocumentHandle) tasker.
 	}
 }
 
-// Fullfills when document translation either finnished or ran into an error.
-func (d *Translator) isDocumentTranslationComplete(doc *types.DocumentHandle) tasker.TaskFunc[types.DocumentStatus] {
+// isDocumentTranslationCompleteAsync checks if a document translation is complete and returns a task that can be awaited.
+// If the translation is not complete, the task will wait for half the estimated time remaining and check again.
+func (d *Translator) isDocumentTranslationCompleteAsync(doc *types.DocumentHandle) tasker.TaskFunc[types.DocumentStatus] {
 	return func(ctx context.Context) (types.DocumentStatus, error) {
 		status, err := tasker.Spawn(d.checkDocumentStatusAsync(doc)).Await()
 		if err != nil {
@@ -161,6 +168,7 @@ func (d *Translator) isDocumentTranslationComplete(doc *types.DocumentHandle) ta
 	}
 }
 
+// downloadDocumentAsync downloads a document translation and returns a task that can be awaited.
 func (d *Translator) downloadDocumentAsync(doc *types.DocumentHandle, file io.Writer) tasker.TaskFunc[bool] {
 	return func(ctx context.Context) (bool, error) {
 		path := fmt.Sprintf("/document/%s/result", doc.DocumentID)
@@ -178,7 +186,8 @@ func (d *Translator) downloadDocumentAsync(doc *types.DocumentHandle, file io.Wr
 	}
 }
 
-func (d *Translator) GetUsage() tasker.TaskFunc[types.Usage] {
+// GetUsageAsync returns the current usage of the DeepL API.
+func (d *Translator) GetUsageAsync() tasker.TaskFunc[types.Usage] {
 	return func(ctx context.Context) (types.Usage, error) {
 		var response types.Usage
 		err := requests.
@@ -193,9 +202,8 @@ func (d *Translator) GetUsage() tasker.TaskFunc[types.Usage] {
 	}
 }
 
-// Retreives supported languages.
-//
-// languageType, type of language to retrive, "source" or "target"
+// GetLanguagesAsync returns the supported languages of the DeepL API.
+// The languageType parameter can be either "source" or "target".
 func (d *Translator) GetLanguagesAsync(languageType string) tasker.TaskFunc[[]types.SupportedLanguage] {
 	return func(ctx context.Context) ([]types.SupportedLanguage, error) {
 		var response []types.SupportedLanguage
@@ -212,6 +220,7 @@ func (d *Translator) GetLanguagesAsync(languageType string) tasker.TaskFunc[[]ty
 	}
 }
 
+// GetGlossaryLanguagesAsync returns the supported languages of the DeepL API.
 func (d *Translator) GetGlossaryLanguagesAsync() tasker.TaskFunc[types.GlossaryLanguagePairs] {
 	return func(ctx context.Context) (types.GlossaryLanguagePairs, error) {
 		var response types.GlossaryLanguagePairs
@@ -227,12 +236,12 @@ func (d *Translator) GetGlossaryLanguagesAsync() tasker.TaskFunc[types.GlossaryL
 	}
 }
 
+// IsFreeAccountAuthKey returns true if the given auth key is a free account auth key.
 func IsFreeAccountAuthKey(key string) bool {
 	return strings.HasSuffix(key, ":fx")
 }
 
-// Returns the struct represented as a map, with the json fields as
-// keys.
+// structToMap converts a struct to a map[string]string.
 func structToMap(s interface{}) map[string]string {
 	ret := make(map[string]string)
 	str := structs.New(s)
@@ -253,15 +262,16 @@ func checkStatusCode() {
 	//TODO
 }
 
+// constructUserAgentString constructs the user agent string that is sent with each request.
 func constructUserAgentString(sendPlattformInfo bool, appInfo types.AppInfo) string {
 	libraryInfo := "deepl-golang/1.0 "
 	if sendPlattformInfo {
 		system := runtime.GOOS
 		goVersion := runtime.Version()
-		libraryInfo += system + " " + goVersion
+		libraryInfo += fmt.Sprintf("%s %s", system, goVersion)
 	}
 	if appInfo != (types.AppInfo{}) {
-		libraryInfo += fmt.Sprint(" "+appInfo.AppName, "/", appInfo.AppVersion)
+		libraryInfo += fmt.Sprintf(" %s/%s", appInfo.AppName, appInfo.AppVersion)
 	}
 	return libraryInfo
 }
