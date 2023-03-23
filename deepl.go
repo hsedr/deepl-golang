@@ -49,7 +49,7 @@ func NewTranslator(authKey string, options types.TranslatorOptions) (*Translator
 	}, nil
 }
 
-func (d *Translator) TranslateTextAsync(text string, sourceLang string, targetLang string, options *types.TextTranslateOptions) tasker.TaskFunc[types.Translations] {
+func (d *Translator) TranslateTextAsync(text, sourceLang, targetLang string, options *types.TextTranslateOptions) tasker.TaskFunc[types.Translations] {
 	return func(ctx context.Context) (types.Translations, error) {
 		var response types.Translations
 		err := requests.
@@ -74,7 +74,7 @@ func (d *Translator) TranslateTextAsync(text string, sourceLang string, targetLa
 }
 
 // TranslateDocumentAsync translates a document and returns a task that can be awaited.
-func (d *Translator) TranslateDocumentAsync(s string, t string, f io.Reader, options types.DocumentTranslateOptions) tasker.TaskFunc[types.DocumentStatus] {
+func (d *Translator) TranslateDocumentAsync(s, t string, f io.Reader, options types.DocumentTranslateOptions) tasker.TaskFunc[types.DocumentStatus] {
 	return func(ctx context.Context) (types.DocumentStatus, error) {
 		var status types.DocumentStatus
 		doc, err := tasker.Spawn(d.uploadDocumentAsync(s, t, f, options)).Await()
@@ -94,7 +94,7 @@ func (d *Translator) TranslateDocumentAsync(s string, t string, f io.Reader, opt
 }
 
 // uploadDocumentAsync uploads a document to the DeepL API and returns a task that can be awaited.
-func (d *Translator) uploadDocumentAsync(s string, t string, file io.Reader, options types.DocumentTranslateOptions) tasker.TaskFunc[types.DocumentHandle] {
+func (d *Translator) uploadDocumentAsync(s, t string, file io.Reader, options types.DocumentTranslateOptions) tasker.TaskFunc[types.DocumentHandle] {
 	return func(ctx context.Context) (types.DocumentHandle, error) {
 		var doc types.DocumentHandle
 		bodyWriter := &multipart.Writer{}
@@ -104,14 +104,15 @@ func (d *Translator) uploadDocumentAsync(s string, t string, file io.Reader, opt
 			Client(d.HttpClient).
 			BodyWriter(func(w io.Writer) error {
 				bodyWriter = multipart.NewWriter(w)
-				defer bodyWriter.Close()
 				bodyWriter.WriteField("source_lang", s)
 				bodyWriter.WriteField("target_lang", t)
+				bodyWriter.WriteField("glossary_id", options.GlossaryID)
 				fileWriter, err := bodyWriter.CreateFormFile("file", options.FileName)
 				if err != nil {
 					fmt.Println(err)
 					return err
 				}
+				bodyWriter.Close()
 				io.Copy(fileWriter, file)
 				contentType = bodyWriter.FormDataContentType()
 				return nil
@@ -178,6 +179,107 @@ func (d *Translator) downloadDocumentAsync(doc *types.DocumentHandle, file io.Wr
 			ContentType("application/x-www-form-urlencoded").
 			Param("document_key", doc.DocumentKey).
 			ToWriter(file).
+			Fetch(context.Background())
+		if err != nil {
+			return false, err
+		}
+		return true, nil
+	}
+}
+
+func (d *Translator) CreateGlossaryAsync(name, source, target string, glossary GlossaryEntries) tasker.TaskFunc[types.Glossary] {
+	return func(ctx context.Context) (types.Glossary, error) {
+		var response types.Glossary
+		if len(glossary.Entries) == 0 {
+			return response, errors.New("no entries provided")
+		}
+		tsv := glossary.ToTSV()
+		response, err := tasker.Spawn(d.internalCreateGlossary(name, source, target, tsv)).Await()
+		if err != nil {
+			return response, err
+		}
+		return response, nil
+	}
+}
+
+func (d *Translator) CreateGlossaryWithCSVAsync(name, source, target string, file io.Writer) {
+	panic("not implemented")
+}
+
+func (d *Translator) internalCreateGlossary(name, source, target, glossary string) tasker.TaskFunc[types.Glossary] {
+	return func(ctx context.Context) (types.Glossary, error) {
+		var response types.Glossary
+		err := requests.
+			URL("/glossaries").
+			Client(d.HttpClient).
+			Param("name", name).
+			Param("source_lang", source).
+			Param("target_lang", target).
+			Param("entries", glossary).
+			Param("entries_format", "tsv").
+			ToJSON(&response).
+			Fetch(context.Background())
+		if err != nil {
+			return response, err
+		}
+		return response, nil
+	}
+}
+
+func (d *Translator) GetGlossariesAsync() tasker.TaskFunc[[]types.Glossary] {
+	return func(ctx context.Context) ([]types.Glossary, error) {
+		var response types.Glossaries
+		err := requests.
+			URL("/glossaries").
+			Client(d.HttpClient).
+			ToJSON(&response).
+			Fetch(context.Background())
+		if err != nil {
+			return response.Glossaries, err
+		}
+		return response.Glossaries, nil
+	}
+}
+
+// GetGlossaryAsync returns a task that can be awaited to get a glossary.
+func (d *Translator) GetGlossaryDetailsAsync(id string) tasker.TaskFunc[types.Glossary] {
+	return func(ctx context.Context) (types.Glossary, error) {
+		var response types.Glossary
+		err := requests.
+			URL(fmt.Sprintf("/glossaries/%s", id)).
+			Client(d.HttpClient).
+			ToJSON(&response).
+			Fetch(context.Background())
+		if err != nil {
+			return response, err
+		}
+		return response, nil
+	}
+}
+
+// TODO: glossary entries should be parsed into a struct
+func (d *Translator) GetGlossaryEntriesAsync(id string) tasker.TaskFunc[string] {
+	return func(ctx context.Context) (string, error) {
+		var response string
+		err := requests.
+			URL(fmt.Sprintf("/glossaries/%s/entries", id)).
+			Client(d.HttpClient).
+			ToJSON(&response).
+			Fetch(context.Background())
+		if err != nil {
+			return response, err
+		}
+		return response, nil
+	}
+}
+
+// DeleteGlossaryAsync returns a task that can be awaited to delete a glossary.
+func (d *Translator) DeleteGlossaryAsync(id string) tasker.TaskFunc[bool] {
+	return func(ctx context.Context) (bool, error) {
+		err := requests.
+			URL(fmt.Sprintf("/glossaries/%s", id)).
+			Client(d.HttpClient).
+			Delete().
 			Fetch(context.Background())
 		if err != nil {
 			return false, err

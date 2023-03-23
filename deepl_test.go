@@ -68,3 +68,47 @@ func TestConstructUserAgent(t *testing.T) {
 		t.Errorf("want: %s, got %s", want, got)
 	}
 }
+
+func TestToSCV(t *testing.T) {
+	entries, _ := NewGlossaryEntries(map[string]string{
+		"proton": "Protonen",
+		"beam":   "Strahl",
+	})
+	got := entries.ToTSV()
+	want := "proton\tProtonen\nbeam\tStrahl"
+	if got != want {
+		t.Errorf("got %s, want %s", got, want)
+	}
+}
+
+func TestFromTSV(t *testing.T) {
+	tsv := "proton\tProtonen\nbeam\tStrahl"
+	entries, _ := NewGlossaryEntries(tsv)
+	got := entries.Entries
+	want := map[string]string{
+		"proton": "Protonen",
+		"beam":   "Strahl",
+	}
+	if !cmp.Equal(got, want) {
+		t.Errorf("got %s, want %s", got, want)
+	}
+}
+
+func TestValidateGlossaryTerm(t *testing.T) {
+	terms := map[string]bool{
+		"proton": true,
+		"beam\n": false,
+		"beam\t": false,
+		"beam\r": false,
+	}
+	entries, _ := NewGlossaryEntries(map[string]string{})
+	for k, v := range terms {
+		err := entries.validateGlossaryTerm(k)
+		if err == nil && !v {
+			t.Errorf("term should be valid: %s", k)
+		}
+		if err != nil && v {
+			t.Errorf("term should be invalid: %s", k)
+		}
+	}
+}

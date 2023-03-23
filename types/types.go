@@ -92,6 +92,20 @@ type GlossaryLanguagePairs struct {
 	SupportedLanguages []GlossaryLanguagePair `json:"supported_languages"`
 }
 
+type Glossaries struct {
+	Glossaries []Glossary `json:"glossaries"`
+}
+
+type Glossary struct {
+	GlossaryID   string               `json:"glossary_id"`
+	Ready        string               `json:"ready"`
+	Name         string               `json:"name"`
+	SourceLang   constants.SourceLang `json:"source_lang"`
+	TargetLang   constants.TargetLang `json:"target_lang"`
+	CreationTime time.Time            `json:"creation_time"`
+	EntryCount   int                  `json:"entry_count"`
+}
+
 type AppInfo struct {
 	AppName    string
 	AppVersion string
