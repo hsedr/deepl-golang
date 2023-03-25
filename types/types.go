@@ -8,8 +8,10 @@ import (
 )
 
 type TextTranslateOptions struct {
+	// Possible values: "0", "1", "nonewlines"
 	SplitSentences string `json:"split_sentences"`
 
+	// Possible values: "0", "1"
 	PreserveFormatting string `json:"preserve_formatting"`
 
 	Formality constants.Formality `json:"formality"`
@@ -22,6 +24,7 @@ type TextTranslateOptions struct {
 	// comma-seperated list of xml tags
 	NonSplittingTags string `json:"non_splitting_tags"`
 
+	// possible values: "0", "1"
 	OutlineDetection string `json:"outline_detection"`
 
 	// comma-seperated list of xml tags

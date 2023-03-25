@@ -28,25 +28,31 @@ func MakeTranslator(header map[string]string) (*Translator, error) {
 }
 
 func TestTranslator_TranslateTextAsync(t *testing.T) {
-	text := "proton beam"
+	text := []string{"proton beam", "proton beam"}
 	translator, err := MakeTranslator(map[string]string{
 		"mock-server-session":           "TooManyRequests",
 		"mock-server-session-429-count": "4",
 	})
 	options := &types.TextTranslateOptions{}
 	res := tasker.Spawn(translator.TranslateTextAsync(text, constants.SourceLangEnglish, constants.TargetLangGerman, options))
-	translation, err := res.Await()
+	translations, err := res.Await()
 	if err != nil {
 		fmt.Println(err)
 	}
-	want := types.Translation{
-		DetectedSourceLanguage: "EN",
-		Text:                   "Protonenstrahl",
+	want := types.Translations{
+		Translations: []types.Translation{
+			{
+				DetectedSourceLanguage: "EN",
+				Text:                   "Protonenstrahl",
+			},
+			{
+				DetectedSourceLanguage: "EN",
+				Text:                   "Protonenstrahl",
+			},
+		},
 	}
-	if len(translation.Translations) == 0 {
-		t.Errorf("got %d, want %d", len(translation.Translations), 1)
-	} else if !cmp.Equal(translation.Translations[0], want) {
-		t.Errorf("got %s, want %s", translation.Translations[0], want)
+	if !cmp.Equal(translations, want.Translations) {
+		t.Errorf("got %s, want %s", translations, want)
 	}
 }
 
@@ -92,6 +98,10 @@ func TestTranslator_TranslateDocumentAsync(t *testing.T) {
 func TestTranslator_Glossary(t *testing.T) {
 	translator, _ := MakeTranslator(map[string]string{})
 	entriesString := "proton\tProtonen\nbeam\tStrahl"
+	entriesMap := map[string]string{
+		"proton": "Protonen",
+		"beam":   "Strahl",
+	}
 	entries, _ := NewGlossaryEntries(entriesString)
 	// Create Glossary
 	want, err := tasker.Spawn(translator.CreateGlossaryAsync("test", constants.SourceLangEnglish, constants.TargetLangGerman, *entries)).Await()
@@ -105,15 +115,27 @@ func TestTranslator_Glossary(t *testing.T) {
 		t.Error(err)
 	}
 	if !cmp.Equal(glossary, want) {
-		t.Errorf("got %+v, want %+v", glossary, want)
+		t.Errorf("Retrieved Glossary invalid, got %+v, want %+v", glossary, want)
 	}
 	// Get Glossary Entries
 	glossaryEntries, err := tasker.Spawn(translator.GetGlossaryEntriesAsync(want.GlossaryID)).Await()
 	if err != nil {
 		t.Error(err)
 	}
-	if glossaryEntries != entriesString {
-		t.Errorf("got %s, want %s", glossaryEntries, entriesString)
+	if !cmp.Equal(glossaryEntries.Entries, entriesMap) {
+		t.Errorf("Glossary Entry invalid, got %s, want %s", glossaryEntries, entriesString)
+	}
+
+	glossaries, err := tasker.Spawn(translator.GetGlossariesAsync()).Await()
+	if err != nil {
+		t.Error(err)
+	}
+	if len(glossaries) == 1 {
+		if !cmp.Equal(glossaries[0], want) {
+			t.Errorf("Retrieved Glossaries invalid, got %+v, want %+v", glossaries[0], want)
+		}
+	} else {
+		t.Error("Glossary was not created")
 	}
 	// Delete Glossary
 	_, err = tasker.Spawn(translator.DeleteGlossaryAsync(want.GlossaryID)).Await()

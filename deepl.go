@@ -47,18 +47,18 @@ func NewTranslator(authKey string, options types.TranslatorOptions) (*Translator
 }
 
 func (d *Translator) TranslateTextAsync(
-	text string,
+	text []string,
 	sourceLang constants.SourceLang,
 	targetLang constants.TargetLang,
 	options *types.TextTranslateOptions,
-) tasker.TaskFunc[types.Translations] {
-	return func(ctx context.Context) (types.Translations, error) {
+) tasker.TaskFunc[[]types.Translation] {
+	return func(ctx context.Context) ([]types.Translation, error) {
 		var response types.Translations
 		err := requests.
 			URL("/translate").
 			Client(d.HttpClient).
 			ContentType("application/x-www-form-urlencoded").
-			Param("text", text).
+			Param("text", text...).
 			Param("source_lang", string(sourceLang)).
 			Param("target_lang", string(targetLang)).
 			Config(func(rb *requests.Builder) {
@@ -69,9 +69,9 @@ func (d *Translator) TranslateTextAsync(
 			ToJSON(&response).
 			Fetch(context.Background())
 		if err != nil {
-			return response, err
+			return response.Translations, err
 		}
-		return response, nil
+		return response.Translations, nil
 	}
 }
 
@@ -277,9 +277,9 @@ func (d *Translator) GetGlossaryDetailsAsync(id string) tasker.TaskFunc[types.Gl
 	}
 }
 
-// TODO: glossary entries should be parsed into a struct
-func (d *Translator) GetGlossaryEntriesAsync(id string) tasker.TaskFunc[string] {
-	return func(ctx context.Context) (string, error) {
+// GetGlossaryEntriesAsync returns a task that can be awaited to get glossaries.
+func (d *Translator) GetGlossaryEntriesAsync(id string) tasker.TaskFunc[GlossaryEntries] {
+	return func(ctx context.Context) (GlossaryEntries, error) {
 		var response string
 		err := requests.
 			URL(fmt.Sprintf("/glossaries/%s/entries", id)).
@@ -287,9 +287,13 @@ func (d *Translator) GetGlossaryEntriesAsync(id string) tasker.TaskFunc[string] 
 			ToString(&response).
 			Fetch(context.Background())
 		if err != nil {
-			return response, err
+			return GlossaryEntries{}, err
 		}
-		return response, nil
+		glossaryEntries, err := NewGlossaryEntries(response)
+		if err != nil {
+			return GlossaryEntries{}, err
+		}
+		return *glossaryEntries, nil
 	}
 }
 
@@ -364,6 +368,7 @@ func IsFreeAccountAuthKey(key string) bool {
 }
 
 // structToMap converts a struct to a map[string]string.
+// JSON field tags ares used as keys.
 func structToMap(s interface{}) map[string]string {
 	ret := make(map[string]string)
 	str := structs.New(s)
