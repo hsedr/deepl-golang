@@ -166,7 +166,6 @@ func (d *Translator) isDocumentTranslationCompleteAsync(doc *types.DocumentHandl
 		if err != nil {
 			return status, err
 		}
-		fmt.Printf("Status: %+v", status)
 		for !status.Done() && status.Ok() {
 			secs := float64(status.SecondsRemaining/2 + 1)
 			time.Sleep(time.Duration(secs) * time.Second)
