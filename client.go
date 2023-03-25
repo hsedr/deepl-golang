@@ -51,7 +51,7 @@ func (t *Transport) transport() http.RoundTripper {
 // RoundTrip executes a single HTTP transaction, returning a Response for the provided Request.
 // Sets prior defined headers and adds the host url to the request url.
 func (t *Transport) RoundTrip(r *http.Request) (*http.Response, error) {
-	req := *r
+	req := r.Clone(r.Context())
 	fullURL := fmt.Sprintf("%s%s?%s", t.ServerUrl, req.URL.Path, req.URL.RawQuery)
 	u, err := url.Parse(fullURL)
 	if err != nil {
@@ -61,5 +61,5 @@ func (t *Transport) RoundTrip(r *http.Request) (*http.Response, error) {
 	for k, v := range t.Headers {
 		req.Header.Set(k, v)
 	}
-	return t.transport().RoundTrip(&req)
+	return t.transport().RoundTrip(req)
 }

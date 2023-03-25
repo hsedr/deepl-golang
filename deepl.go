@@ -16,6 +16,7 @@ import (
 	"github.com/deepl/constants"
 	"github.com/deepl/types"
 	"github.com/fatih/structs"
+	"github.com/google/uuid"
 )
 
 type Translator struct {
@@ -109,24 +110,23 @@ func (d *Translator) uploadDocumentAsync(
 ) tasker.TaskFunc[types.DocumentHandle] {
 	return func(ctx context.Context) (types.DocumentHandle, error) {
 		var doc types.DocumentHandle
-		bodyWriter := &multipart.Writer{}
-		var contentType string
+		boundary := strings.Replace(uuid.New().String(), "-", "", -1)
+		contentType := fmt.Sprintf("multipart/form-data; boundary=%s", boundary)
 		err := requests.
 			URL("/document").
 			Client(d.HttpClient).
 			BodyWriter(func(w io.Writer) error {
-				bodyWriter = multipart.NewWriter(w)
+				bodyWriter := multipart.NewWriter(w)
+				bodyWriter.SetBoundary(boundary)
 				bodyWriter.WriteField("source_lang", string(s))
 				bodyWriter.WriteField("target_lang", string(t))
 				bodyWriter.WriteField("glossary_id", options.GlossaryID)
 				fileWriter, err := bodyWriter.CreateFormFile("file", options.FileName)
 				if err != nil {
-					fmt.Println(err)
 					return err
 				}
-				bodyWriter.Close()
 				io.Copy(fileWriter, file)
-				contentType = bodyWriter.FormDataContentType()
+				bodyWriter.Close()
 				return nil
 			}).
 			ContentType(contentType).
@@ -166,6 +166,7 @@ func (d *Translator) isDocumentTranslationCompleteAsync(doc *types.DocumentHandl
 		if err != nil {
 			return status, err
 		}
+		fmt.Printf("Status: %+v", status)
 		for !status.Done() && status.Ok() {
 			secs := float64(status.SecondsRemaining/2 + 1)
 			time.Sleep(time.Duration(secs) * time.Second)

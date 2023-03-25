@@ -9,7 +9,10 @@ require (
 
 require github.com/carlmjohnson/requests v0.23.2
 
-require github.com/ybbus/httpretry v1.0.2 // indirect
+require (
+	github.com/google/uuid v1.3.0 // indirect
+	github.com/ybbus/httpretry v1.0.2 // indirect
+)
 
 require (
 	github.com/google/go-cmp v0.5.9

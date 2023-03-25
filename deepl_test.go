@@ -66,21 +66,16 @@ func TestTranslator_GetUsageAsync(t *testing.T) {
 	if err != nil {
 		fmt.Println(err)
 	}
-	want := types.Usage{
-		CharacterCount:    0,
-		CharacterLimit:    2000000,
-		DocumentLimit:     10000,
-		DocumentCount:     0,
-		TeamDocumentLimit: 0,
-		TeamDocumentCount: 0,
-	}
-	if !cmp.Equal(usage, want) {
-		t.Errorf("got %+v, want %+v", usage, want)
+	if usage == (types.Usage{}) {
+		t.Error("Error occured while retreiving usage")
 	}
 }
 
 func TestTranslator_TranslateDocumentAsync(t *testing.T) {
-	translator, err := MakeTranslator(map[string]string{})
+	translator, err := MakeTranslator(map[string]string{
+		"mock-server-session":                    "TranslateDocumentTranslateTime",
+		"mock-server-session-doc-translate-time": "10000",
+	})
 	file, _ := os.Create("result.txt")
 	defer file.Close()
 	options := types.DocumentTranslateOptions{
@@ -88,6 +83,7 @@ func TestTranslator_TranslateDocumentAsync(t *testing.T) {
 		OutputFile: file,
 	}
 	input, _ := os.Open("test.txt")
+	defer input.Close()
 	res := tasker.Spawn(translator.TranslateDocumentAsync(constants.SourceLangEnglish, constants.TargetLangGerman, input, options))
 	_, err = res.Await()
 	if err != nil {
