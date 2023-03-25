@@ -17,12 +17,16 @@ All HTTP-related methods are carried out asynchronously, using a [tasker library
 text := []string{"proton beam"}
 key := "auth_key"
 translator, _ := NewTranslator(key, types.TranslatorOptions{})
+
 options := &types.TextTranslateOptions{}
+
 task := tasker.Spawn(translator.TranslateTextAsync(text, constants.SourceLangEnglish, constants.TargetLangGerman, options))
 translations, err := task.Await()
+
 if err != nil {
   fmt.Println(err)
 }
+
 fmt.Println(translations[0].Text) // Protonenstrahl
 ```
 
@@ -30,8 +34,10 @@ fmt.Println(translations[0].Text) // Protonenstrahl
 ```golang
 key := "auth_key"
 translator, _ := NewTranslator(key, types.TranslatorOptions{})
-res := tasker.Spawn(translator.GetUsageAsync())
-usage, err := res.Await()
+
+task := tasker.Spawn(translator.GetUsageAsync())
+
+usage, err := task.Await()
 if err != nil {
   fmt.Println(err)
 }
@@ -42,16 +48,20 @@ fmt.Printf("%+v", usage)
 ```golang
 key := "auth_key"
 translator, _ := NewTranslator(key, types.TranslatorOptions{})
+
 file, _ := os.Create("result.txt")
 defer file.Close()
+
 options := types.DocumentTranslateOptions{
 	FileName:   "result.txt",
 	OutputFile: file,
 }
+
 input, _ := os.Open("test.txt")
 defer input.Close()
-res := tasker.Spawn(translator.TranslateDocumentAsync(constants.SourceLangEnglish, constants.TargetLangGerman, input, options))
-_, err = res.Await()
+
+task := tasker.Spawn(translator.TranslateDocumentAsync(constants.SourceLangEnglish, constants.TargetLangGerman, input, options))
+_, err = task.Await() // Translation Result is written to the provided io.Writer
 if err != nil {
   fmt.Println(err)
 }
