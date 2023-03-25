@@ -21,7 +21,7 @@ options := &types.TextTranslateOptions{}
 task := tasker.Spawn(translator.TranslateTextAsync(text, constants.SourceLangEnglish, constants.TargetLangGerman, options))
 translations, err := task.Await()
 if err != nil {
-	fmt.Println(err)
+  fmt.Println(err)
 }
 fmt.Println(translations[0].Text) // Protonenstrahl
 ```
@@ -36,7 +36,7 @@ if err != nil {
 res := tasker.Spawn(translator.GetUsageAsync())
 usage, err := res.Await()
 if err != nil {
-	fmt.Println(err)
+  fmt.Println(err)
 }
 fmt.Printf("%+v", usage)
 ```
@@ -56,6 +56,6 @@ defer input.Close()
 res := tasker.Spawn(translator.TranslateDocumentAsync(constants.SourceLangEnglish, constants.TargetLangGerman, input, options))
 _, err = res.Await()
 if err != nil {
-	fmt.Println(err)
+  fmt.Println(err)
 }
 ```
