@@ -13,6 +13,7 @@ import (
 
 	"github.com/anthdm/tasker"
 	"github.com/carlmjohnson/requests"
+	"github.com/deepl/constants"
 	"github.com/deepl/types"
 	"github.com/fatih/structs"
 )
@@ -25,31 +26,32 @@ func NewTranslator(authKey string, options types.TranslatorOptions) (*Translator
 	if authKey == "" {
 		return &Translator{}, errors.New("authKey must be a non-empty string")
 	}
-	retries := 5
-	timeout := time.Second * 5
-	serverURL := ""
-	headers := make(map[string]string)
-	if options.ServerURL != "" {
-		serverURL = options.ServerURL
-	} else if IsFreeAccountAuthKey(authKey) {
-		serverURL = "https://api-free.deepl.com"
-	} else {
-		serverURL = "https://api.deepl.com"
+	if options.ServerURL == "" {
+		if IsFreeAccountAuthKey(authKey) {
+			options.ServerURL = "https://api-free.deepl.com/v2"
+		} else {
+			options.ServerURL = "https://api.deepl.com/v2"
+		}
 	}
-	if options.Retries >= 0 {
-		retries = options.Retries
+	if options.Retries <= 0 {
+		options.Retries = 5
 	}
-	if options.TimeOut >= 1 {
-		timeout = options.TimeOut
+	if options.TimeOut <= 0 {
+		options.TimeOut = time.Duration(5) * time.Second
 	}
-	headers["Authorization"] = fmt.Sprint("DeepL-Auth-Key ", authKey)
-	headers["User-Agent"] = constructUserAgentString(options.SendPlattformInfo, options.AppInfo)
+	options.Headers["Authorization"] = fmt.Sprint("DeepL-Auth-Key ", authKey)
+	options.Headers["User-Agent"] = constructUserAgentString(options.SendPlattformInfo, options.AppInfo)
 	return &Translator{
-		HttpClient: NewTransport(serverURL, headers, timeout, retries).Client(),
+		HttpClient: NewTransport(options.ServerURL, options.Headers, options.TimeOut, options.Retries).Client(),
 	}, nil
 }
 
-func (d *Translator) TranslateTextAsync(text, sourceLang, targetLang string, options *types.TextTranslateOptions) tasker.TaskFunc[types.Translations] {
+func (d *Translator) TranslateTextAsync(
+	text string,
+	sourceLang constants.SourceLang,
+	targetLang constants.TargetLang,
+	options *types.TextTranslateOptions,
+) tasker.TaskFunc[types.Translations] {
 	return func(ctx context.Context) (types.Translations, error) {
 		var response types.Translations
 		err := requests.
@@ -57,8 +59,8 @@ func (d *Translator) TranslateTextAsync(text, sourceLang, targetLang string, opt
 			Client(d.HttpClient).
 			ContentType("application/x-www-form-urlencoded").
 			Param("text", text).
-			Param("source_lang", sourceLang).
-			Param("target_lang", targetLang).
+			Param("source_lang", string(sourceLang)).
+			Param("target_lang", string(targetLang)).
 			Config(func(rb *requests.Builder) {
 				for k, v := range structToMap(options) {
 					rb.Param(k, v)
@@ -74,7 +76,12 @@ func (d *Translator) TranslateTextAsync(text, sourceLang, targetLang string, opt
 }
 
 // TranslateDocumentAsync translates a document and returns a task that can be awaited.
-func (d *Translator) TranslateDocumentAsync(s, t string, f io.Reader, options types.DocumentTranslateOptions) tasker.TaskFunc[types.DocumentStatus] {
+func (d *Translator) TranslateDocumentAsync(
+	s constants.SourceLang,
+	t constants.TargetLang,
+	f io.Reader,
+	options types.DocumentTranslateOptions,
+) tasker.TaskFunc[types.DocumentStatus] {
 	return func(ctx context.Context) (types.DocumentStatus, error) {
 		var status types.DocumentStatus
 		doc, err := tasker.Spawn(d.uploadDocumentAsync(s, t, f, options)).Await()
@@ -94,7 +101,12 @@ func (d *Translator) TranslateDocumentAsync(s, t string, f io.Reader, options ty
 }
 
 // uploadDocumentAsync uploads a document to the DeepL API and returns a task that can be awaited.
-func (d *Translator) uploadDocumentAsync(s, t string, file io.Reader, options types.DocumentTranslateOptions) tasker.TaskFunc[types.DocumentHandle] {
+func (d *Translator) uploadDocumentAsync(
+	s constants.SourceLang,
+	t constants.TargetLang,
+	file io.Reader,
+	options types.DocumentTranslateOptions,
+) tasker.TaskFunc[types.DocumentHandle] {
 	return func(ctx context.Context) (types.DocumentHandle, error) {
 		var doc types.DocumentHandle
 		bodyWriter := &multipart.Writer{}
@@ -104,8 +116,8 @@ func (d *Translator) uploadDocumentAsync(s, t string, file io.Reader, options ty
 			Client(d.HttpClient).
 			BodyWriter(func(w io.Writer) error {
 				bodyWriter = multipart.NewWriter(w)
-				bodyWriter.WriteField("source_lang", s)
-				bodyWriter.WriteField("target_lang", t)
+				bodyWriter.WriteField("source_lang", string(s))
+				bodyWriter.WriteField("target_lang", string(t))
 				bodyWriter.WriteField("glossary_id", options.GlossaryID)
 				fileWriter, err := bodyWriter.CreateFormFile("file", options.FileName)
 				if err != nil {
@@ -187,7 +199,13 @@ func (d *Translator) downloadDocumentAsync(doc *types.DocumentHandle, file io.Wr
 	}
 }
 
-func (d *Translator) CreateGlossaryAsync(name, source, target string, glossary GlossaryEntries) tasker.TaskFunc[types.Glossary] {
+// CreateGlossaryAsync creates a glossary
+func (d *Translator) CreateGlossaryAsync(
+	name string,
+	source constants.SourceLang,
+	target constants.TargetLang,
+	glossary GlossaryEntries,
+) tasker.TaskFunc[types.Glossary] {
 	return func(ctx context.Context) (types.Glossary, error) {
 		var response types.Glossary
 		if len(glossary.Entries) == 0 {
@@ -202,19 +220,21 @@ func (d *Translator) CreateGlossaryAsync(name, source, target string, glossary G
 	}
 }
 
-func (d *Translator) CreateGlossaryWithCSVAsync(name, source, target string, file io.Writer) {
-	panic("not implemented")
-}
-
-func (d *Translator) internalCreateGlossary(name, source, target, glossary string) tasker.TaskFunc[types.Glossary] {
+func (d *Translator) internalCreateGlossary(
+	name string,
+	source constants.SourceLang,
+	target constants.TargetLang,
+	glossary string,
+) tasker.TaskFunc[types.Glossary] {
 	return func(ctx context.Context) (types.Glossary, error) {
 		var response types.Glossary
 		err := requests.
 			URL("/glossaries").
+			Method("POST").
 			Client(d.HttpClient).
 			Param("name", name).
-			Param("source_lang", source).
-			Param("target_lang", target).
+			Param("source_lang", string(source)).
+			Param("target_lang", string(target)).
 			Param("entries", glossary).
 			Param("entries_format", "tsv").
 			ToJSON(&response).
@@ -264,7 +284,7 @@ func (d *Translator) GetGlossaryEntriesAsync(id string) tasker.TaskFunc[string] 
 		err := requests.
 			URL(fmt.Sprintf("/glossaries/%s/entries", id)).
 			Client(d.HttpClient).
-			ToJSON(&response).
+			ToString(&response).
 			Fetch(context.Background())
 		if err != nil {
 			return response, err

@@ -8,9 +8,9 @@ import (
 )
 
 type TextTranslateOptions struct {
-	SplitSentences int `json:"split_sentences"`
+	SplitSentences string `json:"split_sentences"`
 
-	PreserveFormatting int `json:"preserve_formatting"`
+	PreserveFormatting string `json:"preserve_formatting"`
 
 	Formality constants.Formality `json:"formality"`
 
@@ -22,7 +22,7 @@ type TextTranslateOptions struct {
 	// comma-seperated list of xml tags
 	NonSplittingTags string `json:"non_splitting_tags"`
 
-	OutlineDetection int `json:"outline_detection"`
+	OutlineDetection string `json:"outline_detection"`
 
 	// comma-seperated list of xml tags
 	SplittingTags string `json:"splitting_tags"`
@@ -98,7 +98,7 @@ type Glossaries struct {
 
 type Glossary struct {
 	GlossaryID   string               `json:"glossary_id"`
-	Ready        string               `json:"ready"`
+	Ready        bool                 `json:"ready"`
 	Name         string               `json:"name"`
 	SourceLang   constants.SourceLang `json:"source_lang"`
 	TargetLang   constants.TargetLang `json:"target_lang"`
@@ -113,7 +113,7 @@ type AppInfo struct {
 
 type TranslatorOptions struct {
 	ServerURL         string
-	Headers           map[string]interface{}
+	Headers           map[string]string
 	SendPlattformInfo bool
 	AppInfo           AppInfo
 	TimeOut           time.Duration

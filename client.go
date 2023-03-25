@@ -34,6 +34,9 @@ func (t *Transport) Client() *http.Client {
 		Timeout:   t.TimeOut,
 	},
 		httpretry.WithMaxRetryCount(t.Retries),
+		httpretry.WithRetryPolicy(func(statusCode int, err error) bool {
+			return err != nil || statusCode >= 500 || statusCode == 429 || statusCode == 0
+		}),
 	)
 }
 
@@ -49,15 +52,14 @@ func (t *Transport) transport() http.RoundTripper {
 // Sets prior defined headers and adds the host url to the request url.
 func (t *Transport) RoundTrip(r *http.Request) (*http.Response, error) {
 	req := *r
-	rawQuery := req.URL.RawQuery
-	path := req.URL.Path
-	u, err := url.Parse(fmt.Sprintf("%s%s?%s", t.ServerUrl, path, rawQuery))
+	fullURL := fmt.Sprintf("%s%s?%s", t.ServerUrl, req.URL.Path, req.URL.RawQuery)
+	u, err := url.Parse(fullURL)
 	if err != nil {
 		return &http.Response{}, err
 	}
 	req.URL = u
 	for k, v := range t.Headers {
-		req.Header.Add(k, v)
+		req.Header.Set(k, v)
 	}
 	return t.transport().RoundTrip(&req)
 }
