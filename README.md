@@ -29,10 +29,7 @@ fmt.Println(translations[0].Text) // Protonenstrahl
 ### Get Usage and other general information
 ```golang
 key := "auth_key"
-translator, err := NewTranslator(key, types.TranslatorOptions{})
-if err != nil {		
-  fmt.Println(err)
-}
+translator, _ := NewTranslator(key, types.TranslatorOptions{})
 res := tasker.Spawn(translator.GetUsageAsync())
 usage, err := res.Await()
 if err != nil {
@@ -44,7 +41,7 @@ fmt.Printf("%+v", usage)
 ### Translate Documents
 ```golang
 key := "auth_key"
-translator, err := NewTranslator(key, types.TranslatorOptions{})
+translator, _ := NewTranslator(key, types.TranslatorOptions{})
 file, _ := os.Create("result.txt")
 defer file.Close()
 options := types.DocumentTranslateOptions{
