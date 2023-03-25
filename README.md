@@ -31,7 +31,7 @@ fmt.Println(translations[0].Text) // Protonenstrahl
 key := "auth_key"
 translator, err := NewTranslator(key, types.TranslatorOptions{})
 if err != nil {		
-  t.Errorf(err.Error())
+  fmt.Println(err)
 }
 res := tasker.Spawn(translator.GetUsageAsync())
 usage, err := res.Await()
