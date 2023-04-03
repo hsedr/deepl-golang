@@ -7,20 +7,20 @@ import (
 	"time"
 
 	"github.com/anthdm/tasker"
-	"github.com/deepl/constants"
+	"github.com/deepl/consts"
 	"github.com/deepl/types"
 	"github.com/google/go-cmp/cmp"
 )
 
 func MakeTranslator(header map[string]string) (*Translator, error) {
 	key := "auth_key"
-	translator, err := NewTranslator(key, types.TranslatorOptions{
-		ServerURL:         "http://localhost:3000/v2",
-		SendPlattformInfo: true,
-		Headers:           header,
-		TimeOut:           time.Duration(5) * time.Second,
-		Retries:           5,
-	})
+	translator, err := NewTranslator(key,
+		WithServerURL("http://localhost:3000/v2"),
+		WithUserAgent(true, types.AppInfo{}),
+		WithHeaders(header),
+		WithTimeOut(time.Duration(5)*time.Second),
+		WithRetries(5),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -33,8 +33,7 @@ func TestTranslator_TranslateTextAsync(t *testing.T) {
 		"mock-server-session":           "TooManyRequests",
 		"mock-server-session-429-count": "4",
 	})
-	options := &types.TextTranslateOptions{}
-	res := tasker.Spawn(translator.TranslateTextAsync(text, constants.SourceLangEnglish, constants.TargetLangGerman, options))
+	res := tasker.Spawn(translator.TranslateTextAsync(text, consts.SourceLangEnglish, consts.TargetLangGerman))
 	translations, err := res.Await()
 	if err != nil {
 		fmt.Println(err)
@@ -78,13 +77,9 @@ func TestTranslator_TranslateDocumentAsync(t *testing.T) {
 	})
 	file, _ := os.Create("result.txt")
 	defer file.Close()
-	options := types.DocumentTranslateOptions{
-		FileName:   "result.txt",
-		OutputFile: file,
-	}
 	input, _ := os.Open("test.txt")
 	defer input.Close()
-	res := tasker.Spawn(translator.TranslateDocumentAsync(constants.SourceLangEnglish, constants.TargetLangGerman, input, options))
+	res := tasker.Spawn(translator.TranslateDocumentAsync(consts.SourceLangEnglish, consts.TargetLangGerman, input, file))
 	_, err = res.Await()
 	if err != nil {
 		fmt.Println(err)
@@ -100,7 +95,7 @@ func TestTranslator_Glossary(t *testing.T) {
 	}
 	entries, _ := NewGlossaryEntries(entriesString)
 	// Create Glossary
-	want, err := tasker.Spawn(translator.CreateGlossaryAsync("test", constants.SourceLangEnglish, constants.TargetLangGerman, *entries)).Await()
+	want, err := tasker.Spawn(translator.CreateGlossaryAsync("test", consts.SourceLangEnglish, consts.TargetLangGerman, *entries)).Await()
 	if err != nil {
 		t.Error(err)
 	}
@@ -154,7 +149,7 @@ func TestTranslator_ConstructUserAgent(t *testing.T) {
 		AppVersion: "1.0",
 	}
 	got := constructUserAgentString(true, appInfo)
-	want := "deepl-golang/1.0 windows go1.20.1 TestApp/1.0"
+	want := "deepl-golang/1.0 windows go1.20.2 TestApp/1.0"
 	if got != want {
 		t.Errorf("want: %s, got %s", want, got)
 	}

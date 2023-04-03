@@ -1,4 +1,4 @@
-package constants
+package consts
 
 type Formality string
 type SourceLang string

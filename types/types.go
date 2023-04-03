@@ -4,7 +4,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/deepl/constants"
+	"github.com/deepl/consts"
 )
 
 type TextTranslateOptions struct {
@@ -14,7 +14,7 @@ type TextTranslateOptions struct {
 	// Possible values: "0", "1"
 	PreserveFormatting string `json:"preserve_formatting"`
 
-	Formality constants.Formality `json:"formality"`
+	Formality consts.Formality `json:"formality"`
 
 	GlossaryID string `json:"glossary_id"`
 
@@ -37,7 +37,7 @@ type TextTranslateOptions struct {
 type DocumentTranslateOptions struct {
 	FileName   string
 	OutputFile io.Writer
-	Formality  constants.Formality
+	Formality  consts.Formality
 	GlossaryID string
 }
 
@@ -100,13 +100,13 @@ type Glossaries struct {
 }
 
 type Glossary struct {
-	GlossaryID   string               `json:"glossary_id"`
-	Ready        bool                 `json:"ready"`
-	Name         string               `json:"name"`
-	SourceLang   constants.SourceLang `json:"source_lang"`
-	TargetLang   constants.TargetLang `json:"target_lang"`
-	CreationTime time.Time            `json:"creation_time"`
-	EntryCount   int                  `json:"entry_count"`
+	GlossaryID   string            `json:"glossary_id"`
+	Ready        bool              `json:"ready"`
+	Name         string            `json:"name"`
+	SourceLang   consts.SourceLang `json:"source_lang"`
+	TargetLang   consts.TargetLang `json:"target_lang"`
+	CreationTime time.Time         `json:"creation_time"`
+	EntryCount   int               `json:"entry_count"`
 }
 
 type AppInfo struct {

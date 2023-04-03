@@ -13,7 +13,7 @@ import (
 
 	"github.com/anthdm/tasker"
 	"github.com/carlmjohnson/requests"
-	"github.com/deepl/constants"
+	"github.com/deepl/consts"
 	"github.com/deepl/types"
 	"github.com/fatih/structs"
 	"github.com/google/uuid"
@@ -23,9 +23,14 @@ type Translator struct {
 	HttpClient *http.Client
 }
 
-func NewTranslator(authKey string, options types.TranslatorOptions) (*Translator, error) {
+func NewTranslator(authKey string, opts ...func(*types.TranslatorOptions) error) (*Translator, error) {
+	options := types.TranslatorOptions{Headers: map[string]string{}}
 	if authKey == "" {
 		return &Translator{}, errors.New("authKey must be a non-empty string")
+	}
+	options.Headers["Authorization"] = fmt.Sprint("DeepL-Auth-Key ", authKey)
+	for _, opt := range opts {
+		opt(&options)
 	}
 	if options.ServerURL == "" {
 		if IsFreeAccountAuthKey(authKey) {
@@ -34,27 +39,61 @@ func NewTranslator(authKey string, options types.TranslatorOptions) (*Translator
 			options.ServerURL = "https://api.deepl.com/v2"
 		}
 	}
-	if options.Retries <= 0 {
-		options.Retries = 5
-	}
-	if options.TimeOut <= 0 {
-		options.TimeOut = time.Duration(5) * time.Second
-	}
-	options.Headers["Authorization"] = fmt.Sprint("DeepL-Auth-Key ", authKey)
-	options.Headers["User-Agent"] = constructUserAgentString(options.SendPlattformInfo, options.AppInfo)
 	return &Translator{
 		HttpClient: NewTransport(options.ServerURL, options.Headers, options.TimeOut, options.Retries).Client(),
 	}, nil
 }
 
+func WithServerURL(serverURL string) func(*types.TranslatorOptions) error {
+	return func(options *types.TranslatorOptions) error {
+		options.ServerURL = serverURL
+		return nil
+	}
+}
+
+func WithUserAgent(sendPlattformInfo bool, appInfo types.AppInfo) func(*types.TranslatorOptions) error {
+	return func(options *types.TranslatorOptions) error {
+		options.Headers["User-Agent"] = constructUserAgentString(sendPlattformInfo, appInfo)
+		return nil
+	}
+}
+
+func WithRetries(retries int) func(*types.TranslatorOptions) error {
+	return func(options *types.TranslatorOptions) error {
+		options.Retries = retries
+		return nil
+	}
+}
+
+func WithTimeOut(timeout time.Duration) func(*types.TranslatorOptions) error {
+	return func(options *types.TranslatorOptions) error {
+		options.TimeOut = timeout
+		return nil
+	}
+}
+
+func WithHeaders(headers map[string]string) func(*types.TranslatorOptions) error {
+	return func(options *types.TranslatorOptions) error {
+		for k, v := range headers {
+			options.Headers[k] = v
+		}
+		return nil
+	}
+}
+
 func (d *Translator) TranslateTextAsync(
 	text []string,
-	sourceLang constants.SourceLang,
-	targetLang constants.TargetLang,
-	options *types.TextTranslateOptions,
+	sourceLang consts.SourceLang,
+	targetLang consts.TargetLang,
+	opts ...func(*types.TextTranslateOptions) error,
 ) tasker.TaskFunc[[]types.Translation] {
 	return func(ctx context.Context) ([]types.Translation, error) {
 		var response types.Translations
+		options := types.TextTranslateOptions{}
+		for _, opt := range opts {
+			opt(&options)
+			break
+		}
 		err := requests.
 			URL("/translate").
 			Client(d.HttpClient).
@@ -76,15 +115,31 @@ func (d *Translator) TranslateTextAsync(
 	}
 }
 
+func WithTextTranslateOptions(options types.TextTranslateOptions) func(*types.TextTranslateOptions) error {
+	return func(opts *types.TextTranslateOptions) error {
+		opts = &options
+		return nil
+	}
+}
+
 // TranslateDocumentAsync translates a document and returns a task that can be awaited.
 func (d *Translator) TranslateDocumentAsync(
-	s constants.SourceLang,
-	t constants.TargetLang,
+	s consts.SourceLang,
+	t consts.TargetLang,
 	f io.Reader,
-	options types.DocumentTranslateOptions,
+	w io.Writer,
+	opts ...func(*types.DocumentTranslateOptions) error,
 ) tasker.TaskFunc[types.DocumentStatus] {
 	return func(ctx context.Context) (types.DocumentStatus, error) {
 		var status types.DocumentStatus
+		options := types.DocumentTranslateOptions{}
+		for _, opt := range opts {
+			opt(&options)
+			break
+		}
+		if options.FileName == "" {
+			options.FileName = uuid.New().String()
+		}
 		doc, err := tasker.Spawn(d.uploadDocumentAsync(s, t, f, options)).Await()
 		if err != nil {
 			return status, err
@@ -101,10 +156,17 @@ func (d *Translator) TranslateDocumentAsync(
 	}
 }
 
+func WithDocumentTranslateOptions(options types.DocumentTranslateOptions) func(*types.DocumentTranslateOptions) error {
+	return func(opts *types.DocumentTranslateOptions) error {
+		opts = &options
+		return nil
+	}
+}
+
 // uploadDocumentAsync uploads a document to the DeepL API and returns a task that can be awaited.
 func (d *Translator) uploadDocumentAsync(
-	s constants.SourceLang,
-	t constants.TargetLang,
+	s consts.SourceLang,
+	t consts.TargetLang,
 	file io.Reader,
 	options types.DocumentTranslateOptions,
 ) tasker.TaskFunc[types.DocumentHandle] {
@@ -202,8 +264,8 @@ func (d *Translator) downloadDocumentAsync(doc *types.DocumentHandle, file io.Wr
 // CreateGlossaryAsync creates a glossary
 func (d *Translator) CreateGlossaryAsync(
 	name string,
-	source constants.SourceLang,
-	target constants.TargetLang,
+	source consts.SourceLang,
+	target consts.TargetLang,
 	glossary GlossaryEntries,
 ) tasker.TaskFunc[types.Glossary] {
 	return func(ctx context.Context) (types.Glossary, error) {
@@ -222,8 +284,8 @@ func (d *Translator) CreateGlossaryAsync(
 
 func (d *Translator) internalCreateGlossary(
 	name string,
-	source constants.SourceLang,
-	target constants.TargetLang,
+	source consts.SourceLang,
+	target consts.TargetLang,
 	glossary string,
 ) tasker.TaskFunc[types.Glossary] {
 	return func(ctx context.Context) (types.Glossary, error) {

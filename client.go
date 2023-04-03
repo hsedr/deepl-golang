@@ -19,6 +19,12 @@ type Transport struct {
 
 // NewTransport returns a new Transport with the given server url, headers, timeout and retries.
 func NewTransport(serverUrl string, headers map[string]string, timeOut time.Duration, retries int) *Transport {
+	if retries <= 0 {
+		retries = 5
+	}
+	if timeOut <= 0 {
+		timeOut = time.Duration(5) * time.Second
+	}
 	return &Transport{
 		ServerUrl: serverUrl,
 		Headers:   headers,
