@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/anthdm/tasker"
-	"github.com/deepl/consts"
-	"github.com/deepl/types"
 	"github.com/google/go-cmp/cmp"
+	"github.com/hsedr/deepl-golang/consts"
+	"github.com/hsedr/deepl-golang/types"
 )
 
 func MakeTranslator(header map[string]string) (*Translator, error) {

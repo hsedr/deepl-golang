@@ -13,10 +13,10 @@ import (
 
 	"github.com/anthdm/tasker"
 	"github.com/carlmjohnson/requests"
-	"github.com/deepl/consts"
-	"github.com/deepl/types"
 	"github.com/fatih/structs"
 	"github.com/google/uuid"
+	"github.com/hsedr/deepl-golang/consts"
+	"github.com/hsedr/deepl-golang/types"
 )
 
 type Translator struct {

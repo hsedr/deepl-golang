@@ -1,4 +1,4 @@
-module github.com/deepl
+module github.com/hsedr/deepl-golang
 
 go 1.20
 

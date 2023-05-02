@@ -4,8 +4,8 @@ import (
 	"log"
 
 	"github.com/anthdm/tasker"
-	"github.com/deepl"
-	"github.com/deepl/consts"
+	"github.com/hsedr/deepl-golang"
+	"github.com/hsedr/deepl-golang/consts"
 )
 
 func main() {
