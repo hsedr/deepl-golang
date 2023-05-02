@@ -4,7 +4,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/deepl/consts"
+	"github.com/hsedr/deepl-golang/consts"
 )
 
 type TextTranslateOptions struct {
